@@ -74,12 +74,9 @@ data {
 
   real sigma_shared_sd;
 
- 
-
 }
 
  
-
 transformed data {
 
   int<lower=1> T = N_pre + N_post;
@@ -90,13 +87,7 @@ transformed data {
 
 parameters {
 
-
-
-
   //real<lower=0.01> scale_hc;
-
-
-
 
   real mu0_trend_shared;
 
