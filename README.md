@@ -21,7 +21,7 @@ The current implementation includes:
  - Segment-specific observation noise models
 
 
-You’ll find the main STAN model in /stan/causalgen.stan. Synthetic simulation examples are provided in /simulations/, and we plan to release a set of R and Python utilities for fitting and diagnostics in upcoming updates.
+You’ll find the main STAN model in /stan/causalgen.stan. We plan to release a set of R and Python utilities for fitting and diagnostics in upcoming updates.
 
 This project is still evolving. Feedback, extensions, and adaptations are welcome. CAUSALGEN is meant to serve as a robust and customizable starting point for practitioners working at the intersection of forecasting and causal inference — especially when one-size-fits-all tools fall short.
 
