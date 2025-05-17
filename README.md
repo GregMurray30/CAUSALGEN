@@ -1,6 +1,6 @@
 # CAUSALGEN
 
-CAUSALGEN is a Bayesian framework for estimating causal effects in time series data with heterogeneous response dynamics across structured groups. It was developed to address limitations in conventional tools like CausalImpact and BSTS, particularly in settings where treatment effects vary by segment and unfold over time in complex, non-additive ways.
+CAUSALGEN is a Bayesian framework for estimating causal effects in time series data with heterogeneous response dynamics across structured groups. It was developed to address limitations in conventional tools like CausalImpact, particularly in settings where treatment effects vary by segment and unfold over time in complex, non-additive ways.
 
 At its core, CAUSALGEN combines a shared latent state process, segment-specific trend deviations, and multiplicative event effects into a coherent generative model. The structure is modular and extensible, making it suitable for scenarios involving geographic regions, user segments (e.g., casual vs. hardcore players), or any other partition where partial pooling is desirable. All inference is conducted in STAN, with the model designed to be flexible rather than plug-and-play — intended for researchers and applied modelers who need fine-grained control over assumptions.
 
@@ -24,3 +24,8 @@ The current implementation includes:
 You’ll find the main STAN model in /stan/causalgen.stan. Synthetic simulation examples are provided in /simulations/, and we plan to release a set of R and Python utilities for fitting and diagnostics in upcoming updates.
 
 This project is still evolving. Feedback, extensions, and adaptations are welcome. CAUSALGEN is meant to serve as a robust and customizable starting point for practitioners working at the intersection of forecasting and causal inference — especially when one-size-fits-all tools fall short.
+
+
+# RESULTS
+
+When testing on real data in a predictive capacity, CausalGen performed between 7-12% better than Google's causal_impact in terms of the midpoint forecast. Importantly, the credible intervals for CausalGen were 25-35% narrower, which aligned with observed data at 95% coverage. 
