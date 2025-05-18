@@ -1,3 +1,4 @@
+
 functions {
 
   real softplus(real x) {
@@ -74,9 +75,12 @@ data {
 
   real sigma_shared_sd;
 
+ 
+
 }
 
  
+
 transformed data {
 
   int<lower=1> T = N_pre + N_post;
@@ -87,7 +91,11 @@ transformed data {
 
 parameters {
 
+ 
+
   //real<lower=0.01> scale_hc;
+
+ 
 
   real mu0_trend_shared;
 
@@ -138,13 +146,6 @@ parameters {
 
 
 
-  vector[T] delta_trend_csl_raw;
-
-  vector[T] delta_trend_hc_raw;
-
-  real sigma_dev_trend;
-
- 
 
   // Shared ARMA latent state
 
@@ -170,19 +171,69 @@ parameters {
 
  
 
-  // Segment-level deviations
+real<lower=-1, upper=1> rho1_shared;
 
-  vector[N_pre] delta_csl_raw;
+ real<lower=-1, upper=1> rho2_shared;
 
-  vector[N_pre] delta_hc_raw;
+ real<lower=-1, upper=1> rho3_shared;
 
-  real<lower=0> sigma_dev_csl;
-
-  real<lower=0> sigma_dev_hc;
-
-  real<lower=-1, upper=1> rho_seg;
+ //real<lower=-1, upper=1> theta_shared;
 
  
+
+  real<lower=0> sigma_rho;
+
+ 
+
+  real<lower=-1, upper=1> rho1_csl;
+
+  real<lower=-1, upper=1> rho2_csl;
+
+  real<lower=-1, upper=1> rho3_csl;
+
+  //real theta_csl;
+
+ 
+
+  real<lower=-1, upper=1> rho1_hc;
+
+  real<lower=-1, upper=1> rho2_hc;
+
+  real<lower=-1, upper=1> rho3_hc;
+
+  //real theta_hc;
+
+ 
+
+  real<lower=-.9, upper=.9> rho1_dev_shared;
+
+ 
+
+  real<lower=-.9, upper=.9> rho1_dev_csl;
+
+  real<lower=-.9, upper=.9> rho1_dev_hc;
+
+ 
+
+  // Shared delta trajectory
+
+  vector[T] delta_mean_raw;
+
+  real<lower=0> sigma_delta_mean;
+
+ 
+
+  vector[T] delta_csl_raw;
+
+  vector[T] delta_hc_raw;
+
+  real<lower=0> sigma_delta_csl;
+
+  real<lower=0> sigma_delta_hc;
+
+
+
+
 
   // Covariates
 
@@ -201,6 +252,8 @@ parameters {
  
 
 transformed parameters {
+
+ 
 
   vector[T] level_trend_raw;
 
@@ -234,6 +287,10 @@ transformed parameters {
 
   vector[T] mu_hc;
 
+ 
+
+  vector[T] delta_mean;
+
 
 
 
@@ -249,7 +306,8 @@ transformed parameters {
 
   vector[T] slope_trend_hc;
 
- 
+
+
 
   // Initialization
 
@@ -300,82 +358,104 @@ transformed parameters {
 
 
 
-  // Shared state (centered at 1)
+// Shared AR(3) latent
 
   state_shared[1] = 1 + sigma_shared * shared_raw[1];
 
-  state_shared[2] = 1 + rho1 * (state_shared[1] - 1) + sigma_shared * shared_raw[2];
+  state_shared[2] = 1 + rho1_shared * (state_shared[1] - 1) + sigma_shared * shared_raw[2];
 
-  state_shared[3] = 1 + rho1 * (state_shared[2] - 1) + rho2 * (state_shared[1] - 1) + sigma_shared * shared_raw[3];
+  state_shared[3] = 1 + rho1_shared * (state_shared[2] - 1) + rho2_shared * (state_shared[1] - 1) + sigma_shared * shared_raw[3];
 
   for (t in 4:N_pre) {
 
-    state_shared[t] = 1
-
-      + rho1 * (state_shared[t - 1] - 1)
-
-      + rho2 * (state_shared[t - 2] - 1)
-
-      + rho3 * (state_shared[t - 3] - 1)
-
-      + sigma_shared * shared_raw[t];
+    state_shared[t] = 1 + rho1_shared * (state_shared[t - 1] - 1) + rho2_shared * (state_shared[t - 2] - 1) + rho3_shared * (state_shared[t - 3] - 1) + sigma_shared * shared_raw[t];
 
   }
 
   for (t in (N_pre + 1):T) {
 
-    state_shared[t] = 1
-
-      + rho1 * (state_shared[t - 1] - 1)
-
-      + rho2 * (state_shared[t - 2] - 1)
-
-      + rho3 * (state_shared[t - 3] - 1);
+    state_shared[t] = (1- .001) * (1 + rho1_shared * (state_shared[t - 1] - 1) + rho2_shared * (state_shared[t - 2] - 1) + rho3_shared * (state_shared[t - 3] - 1) ) + .001;
 
   }
 
+  
+
+  state_shared = state_shared / mean(state_shared[1:N_pre]);
+
  
 
-  geo_state_adjusted = state_shared;
+  // Hierarchical delta mean path
 
- 
-
-  // Segment-level deviation (centered AR(1))
-
-  delta_csl[1] = 1 + sigma_dev_csl * delta_csl_raw[1];
-
-  delta_hc[1] = 1 + sigma_dev_hc * delta_hc_raw[1];
+  delta_mean[1] = 1 + sigma_delta_mean * delta_mean_raw[1];
 
   for (t in 2:N_pre) {
 
-    delta_csl[t] = 1 + rho_seg * (delta_csl[t - 1] - 1) + sigma_dev_csl * delta_csl_raw[t];
-
-    delta_hc[t] = 1 + rho_seg * (delta_hc[t - 1] - 1) + sigma_dev_hc * delta_hc_raw[t];
-
-  }
-
-  for (t in (N_pre + 1):T) {
-
-    delta_csl[t] = delta_csl[N_pre];
-
-    delta_hc[t] = delta_hc[N_pre];
+    delta_mean[t] = 1 + sigma_delta_mean * delta_mean_raw[t];
 
   }
 
  
+
+  for (t in (N_pre+1):T) {
+
+    delta_mean[t] = 1 + rho1_dev_shared * (delta_mean[t - 1] - 1);
+
+  }
+
+ 
+
+  delta_csl[1] = 1 + sigma_delta_csl * delta_csl_raw[1];
+
+  delta_hc[1] = 1 + sigma_delta_hc * delta_hc_raw[1];
+
+  for (t in 2:N_pre) {
+
+    delta_csl[t] = 1 + sigma_delta_csl * delta_csl_raw[t];
+
+    delta_hc[t] = 1 + sigma_delta_hc * delta_hc_raw[t];
+
+  }
+
+ 
+
+  for (t in (N_pre+1):T) {
+
+    delta_csl[t] = 1;
+
+    delta_hc[t] = 1;
+
+  }
+
+ 
+
+  for (t in 1:T) {
+
+    state_csl[t] = state_shared[t] * delta_csl[t];
+
+    state_hc[t] = state_shared[t] * delta_hc[t];
+
+  }
+
+ 
+
+  state_csl = state_csl / mean(state_csl[1:N_pre]);
+
+  state_hc = state_hc / mean(state_hc[1:N_pre]);
+
+
+
 
   // Latent state per segment
 
   for (t in 1:T) {
 
-    state_csl[t] = geo_state_adjusted[t] * delta_csl[t];
+   
 
-    state_hc[t] = geo_state_adjusted[t] * delta_hc[t];
-
- 
     trend_csl[t] = level_trend_csl[t];
 
     trend_hc[t] = level_trend_hc[t];
+
+
 
 
     mu_csl[t] = state_csl[t] * (1 + dot_product(beta_event, Evts[t,])) * trend_csl[t];
@@ -383,6 +463,8 @@ transformed parameters {
     mu_hc[t] =  state_hc[t] * (1 + dot_product(beta_event, Evts[t,])) * trend_hc[t];
 
   }
+
+ 
 
 }
 
@@ -413,9 +495,9 @@ model {
 
   mu0_trend_hc ~ normal(mu0_trend_shared, 5);
 
-  beta0_trend_csl ~ normal(beta0_trend_shared, 0.3);
+  beta0_trend_csl ~ normal(beta0_trend_shared, 0.5);
 
-  beta0_trend_hc ~ normal(beta0_trend_shared, 0.3);
+  beta0_trend_hc ~ normal(beta0_trend_shared, 1);
 
   sigma_level_trend_csl ~ normal(sigma_level_trend_shared, 0.4);
 
@@ -447,6 +529,16 @@ model {
 
   //theta ~ normal(theta_mn, theta_sd);
 
+ 
+
+  rho1_dev_shared ~ normal(0, .01);
+
+  rho1_dev_csl ~ normal(rho1_dev_shared, .01);
+
+  rho1_dev_hc ~ normal(rho1_dev_shared, .01);
+
+ 
+
   sigma_shared ~ normal(0, sigma_shared_sd);
 
   shared_raw ~ normal(0, 1);
@@ -459,36 +551,67 @@ model {
 
  
 
+  sigma_delta_mean ~ normal(0, .05);
+
+ 
+
+  sigma_rho ~ normal(.1, .1);
+
+ 
+
   delta_csl_raw ~ normal(0, 1);
 
   delta_hc_raw ~ normal(0, 1);
 
-  sigma_dev_csl ~ normal(0, .005);
+  sigma_delta_csl ~ normal(0, .1);
 
-  sigma_dev_hc ~ normal(0, .1);
-
-  rho_seg ~ normal(0, .3);
+  sigma_delta_hc ~ normal(0, .1);
 
  
+
+  // AR parameter priors
+
+  rho1_csl ~ normal(rho1_shared, sigma_rho);
+
+  rho2_csl ~ normal(rho2_shared, sigma_rho);
+
+  rho3_csl ~ normal(rho3_shared, sigma_rho);
+
+  //theta_csl ~ normal(theta_shared, sigma_rho);
+
+ 
+
+  rho1_hc ~ normal(rho1_shared, sigma_rho);
+
+  rho2_hc ~ normal(rho2_shared, sigma_rho);
+
+  rho3_hc ~ normal(rho3_shared, sigma_rho);
+
+  //theta_hc ~ normal(theta_shared, sigma_rho);
+
+ 
+
+  // Delta priors
+
+  delta_mean_raw ~ normal(0, 1);
+
+  delta_csl_raw ~ normal(0, 1);
+
+  delta_hc_raw ~ normal(0, 1);
+
+
+
 
   beta_event ~ normal(.01, 1);
 
  
 
-  sigma_obs_csl ~ normal(2, 3);
+  sigma_obs_csl ~ normal(2, 1);
 
-  sigma_obs_hc ~ normal(.2, 1);
-
-
+  sigma_obs_hc ~ normal(2, 1);
 
 
-  sigma_dev_trend ~ normal(0, .2);
 
-  delta_trend_csl_raw ~ normal(0, 1);
-
-  delta_trend_hc_raw ~ normal(0, 1);
-
- 
 
   // Likelihood
 
