@@ -1,4 +1,3 @@
-
 functions {
 
   real softplus(real x) {
@@ -146,23 +145,6 @@ parameters {
 
 
 
-
-  // Shared ARMA latent state
-
-  real<lower=0> sigma_shared;
-
-  vector[N_pre] shared_raw;
-
-  real<lower=-1, upper=.8> rho1;
-
-  real<lower=-1, upper=.1> rho2;
-
-  real<lower=-1, upper=.1> rho3;
-
-//  real<lower=-1, upper=1> theta;
-
- 
-
   // Geo hierarchy
 
   //vector[geo_n] geo_state_offset_raw;
@@ -205,35 +187,35 @@ real<lower=-1, upper=1> rho1_shared;
 
  
 
-  real<lower=-.9, upper=.9> rho1_dev_shared;
+  vector[N_pre] state_csl_raw;
+
+  vector[N_pre] state_hc_raw;
 
  
 
-  real<lower=-.9, upper=.9> rho1_dev_csl;
+  real<lower=0> sigma_state_shared;
 
-  real<lower=-.9, upper=.9> rho1_dev_hc;
+  real<lower=0> sigma_state_csl;
 
- 
-
-  // Shared delta trajectory
-
-  vector[T] delta_mean_raw;
-
-  real<lower=0> sigma_delta_mean;
+  real<lower=0> sigma_state_hc;
 
  
 
-  vector[T] delta_csl_raw;
+  //real sigma_delta_csl;
 
-  vector[T] delta_hc_raw;
+  //real sigma_delta_hc;
 
-  real<lower=0> sigma_delta_csl;
+ 
 
-  real<lower=0> sigma_delta_hc;
+  vector[N_pre] state_shared_raw;
 
+ 
 
+  //vector[T] delta_csl_raw;
 
+// vector[T] delta_hc_raw;
 
+ 
 
   // Covariates
 
@@ -265,15 +247,13 @@ transformed parameters {
 
  
 
-  vector[T] state_shared;
-
   vector[T] geo_state_adjusted;
 
  
 
-  vector[T] delta_csl;
+  //vector[T] delta_csl;
 
-  vector[T] delta_hc;
+  //vector[T] delta_hc;
 
  
 
@@ -291,8 +271,7 @@ transformed parameters {
 
   vector[T] delta_mean;
 
-
-
+ 
 
   // Local linear trend with partial pooling for CSL and HC // Shared trend slope with segment-specific level offsets
 
@@ -306,8 +285,7 @@ transformed parameters {
 
   vector[T] slope_trend_hc;
 
-
-
+ 
 
   // Initialization
 
@@ -357,84 +335,45 @@ transformed parameters {
 
 
 
+  // Initialize states
 
-// Shared AR(3) latent
+  state_csl[1] = 1 + sigma_state_csl * state_shared_raw[1];
 
-  state_shared[1] = 1 + sigma_shared * shared_raw[1];
+  state_csl[2] = 1 + rho1_csl * (state_csl[1] - 1) + sigma_state_csl * state_shared_raw[2];
 
-  state_shared[2] = 1 + rho1_shared * (state_shared[1] - 1) + sigma_shared * shared_raw[2];
+  state_csl[3] = 1 + rho1_csl * (state_csl[2] - 1) + rho2_csl * (state_csl[1] - 1) + sigma_state_csl * state_shared_raw[3];
 
-  state_shared[3] = 1 + rho1_shared * (state_shared[2] - 1) + rho2_shared * (state_shared[1] - 1) + sigma_shared * shared_raw[3];
+ 
+
+  state_hc[1] = 1 + sigma_state_hc * state_shared_raw[1];
+
+  state_hc[2] = 1 + rho1_hc * (state_hc[1] - 1) + sigma_state_hc * state_shared_raw[2];
+
+  state_hc[3] = 1 + rho1_hc * (state_hc[2] - 1) + rho2_hc * (state_hc[1] - 1) + sigma_state_hc * state_shared_raw[3];
+
+ 
 
   for (t in 4:N_pre) {
 
-    state_shared[t] = 1 + rho1_shared * (state_shared[t - 1] - 1) + rho2_shared * (state_shared[t - 2] - 1) + rho3_shared * (state_shared[t - 3] - 1) + sigma_shared * shared_raw[t];
+    state_csl[t] = 1 + rho1_csl * (state_csl[t - 1] - 1) + rho2_csl * (state_csl[t - 2] - 1) + rho3_csl * (state_csl[t - 3] - 1) + sigma_state_csl * state_shared_raw[t];
+
+    state_hc[t] = 1 + rho1_hc * (state_hc[t - 1] - 1) + rho2_hc * (state_hc[t - 2] - 1) + rho3_hc * (state_hc[t - 3] - 1) + sigma_state_hc * state_shared_raw[t];
 
   }
+
+ 
 
   for (t in (N_pre + 1):T) {
 
-    state_shared[t] = (1- .001) * (1 + rho1_shared * (state_shared[t - 1] - 1) + rho2_shared * (state_shared[t - 2] - 1) + rho3_shared * (state_shared[t - 3] - 1) ) + .001;
+    state_csl[t] = 1 + rho1_csl * (state_csl[t - 1] - 1) + rho2_csl * (state_csl[t - 2] - 1) + rho3_csl * (state_csl[t - 3] - 1);
 
-  }
-
-  
-
-  state_shared = state_shared / mean(state_shared[1:N_pre]);
-
- 
-
-  // Hierarchical delta mean path
-
-  delta_mean[1] = 1 + sigma_delta_mean * delta_mean_raw[1];
-
-  for (t in 2:N_pre) {
-
-    delta_mean[t] = 1 + sigma_delta_mean * delta_mean_raw[t];
+    state_hc[t] = 1 + rho1_hc * (state_hc[t - 1] - 1) + rho2_hc * (state_hc[t - 2] - 1) + rho3_hc * (state_hc[t - 3] - 1);
 
   }
 
  
 
-  for (t in (N_pre+1):T) {
-
-    delta_mean[t] = 1 + rho1_dev_shared * (delta_mean[t - 1] - 1);
-
-  }
-
  
-
-  delta_csl[1] = 1 + sigma_delta_csl * delta_csl_raw[1];
-
-  delta_hc[1] = 1 + sigma_delta_hc * delta_hc_raw[1];
-
-  for (t in 2:N_pre) {
-
-    delta_csl[t] = 1 + sigma_delta_csl * delta_csl_raw[t];
-
-    delta_hc[t] = 1 + sigma_delta_hc * delta_hc_raw[t];
-
-  }
-
- 
-
-  for (t in (N_pre+1):T) {
-
-    delta_csl[t] = 1;
-
-    delta_hc[t] = 1;
-
-  }
-
- 
-
-  for (t in 1:T) {
-
-    state_csl[t] = state_shared[t] * delta_csl[t];
-
-    state_hc[t] = state_shared[t] * delta_hc[t];
-
-  }
 
  
 
@@ -472,8 +411,6 @@ transformed parameters {
 
 
 model {
-
-  //scale_hc ~ normal(.5, .1);
 
  
 
@@ -521,27 +458,13 @@ model {
 
  
 
-  rho1 ~ normal(rho1_mn, rho1_sd);
+  state_shared_raw ~ normal(0, 1);
 
-  rho2 ~ normal(rho2_mn, rho2_sd);
+  sigma_state_shared ~ normal(0.01, sigma_shared_sd);
 
-  rho3 ~ normal(rho3_mn, rho3_sd);
+  sigma_state_csl ~ normal(sigma_state_shared, .1);
 
-  //theta ~ normal(theta_mn, theta_sd);
-
- 
-
-  rho1_dev_shared ~ normal(0, .01);
-
-  rho1_dev_csl ~ normal(rho1_dev_shared, .01);
-
-  rho1_dev_hc ~ normal(rho1_dev_shared, .01);
-
- 
-
-  sigma_shared ~ normal(0, sigma_shared_sd);
-
-  shared_raw ~ normal(0, 1);
+  sigma_state_hc ~ normal(sigma_state_shared, .3);
 
  
 
@@ -551,21 +474,7 @@ model {
 
  
 
-  sigma_delta_mean ~ normal(0, .05);
-
- 
-
   sigma_rho ~ normal(.1, .1);
-
- 
-
-  delta_csl_raw ~ normal(0, 1);
-
-  delta_hc_raw ~ normal(0, 1);
-
-  sigma_delta_csl ~ normal(0, .1);
-
-  sigma_delta_hc ~ normal(0, .1);
 
  
 
@@ -589,20 +498,10 @@ model {
 
   //theta_hc ~ normal(theta_shared, sigma_rho);
 
- 
-
-  // Delta priors
-
-  delta_mean_raw ~ normal(0, 1);
-
-  delta_csl_raw ~ normal(0, 1);
-
-  delta_hc_raw ~ normal(0, 1);
 
 
 
-
-  beta_event ~ normal(.01, 1);
+  beta_event ~ normal(.1, 1);
 
  
 
@@ -627,7 +526,9 @@ model {
 
 }
 
- 
+
+
+
 
 generated quantities {
 
